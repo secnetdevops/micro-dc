@@ -1,13 +1,3 @@
-variable "micro_dc_host" {
-  type    = string
-  default = "micro.dc.host"
-}
-
-variable "micro_dc_user" {
-  type    = string
-  default = "ubuntu"
-}
-
 terraform {
   required_providers {
     libvirt = {
