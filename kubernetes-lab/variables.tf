@@ -43,7 +43,7 @@ variable "k8s_vrack_subnet" {
     default = "172.30.3.0/24"
 }
 
-variable "elasticsearch_vrack_subnet" {
+variable "es_vrack_subnet" {
     type    = string
     default = "172.30.4.0/24"
 }
