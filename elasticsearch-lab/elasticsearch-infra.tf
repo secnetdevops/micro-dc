@@ -1,4 +1,4 @@
-variable "es_nodes_count" {
+variable "nodes_count" {
   type    = number
   default = 3
 }
@@ -40,7 +40,7 @@ ethernets:
       dhcp4: false
       dhcp6: false
       addresses:
-      - ${cidrhost(var.elasticsearch_vrack_subnet, count.index + 11)}/${regex(".*/(.*)", var.elasticsearch_vrack_subnet)[0]}
+      - ${cidrhost(var.es_vrack_subnet, count.index + 11)}/${regex(".*/(.*)", var.es_vrack_subnet)[0]}
       nameservers:
         addresses: [ 8.8.8.8 ]
       routes:
@@ -51,7 +51,7 @@ EOF
   #user_data      = data.template_file.user_data.rendered
   #network_config = data.template_file.network_config.rendered
 
-  count          = var.es_nodes_count
+  count          = var.nodes_count
 }
 
 resource "libvirt_volume" "volume" {
@@ -59,7 +59,7 @@ resource "libvirt_volume" "volume" {
   base_volume_id = "/var/lib/libvirt/images/ubuntu20.04"
   format         = "qcow2"
   pool           = libvirt_pool.storage.name
-  count          = var.es_nodes_count
+  count          = var.nodes_count
 }
 
 resource "libvirt_domain" "domain" {
@@ -95,7 +95,7 @@ resource "libvirt_domain" "domain" {
 #       bastion_host = var.micro_dc_host
 #       bastion_user = var.micro_dc_user
 
-#       host        = "${cidrhost(var.elasticsearch_vrack_subnet, count.index + 11)}"
+#       host        = "${cidrhost(var.es_vrack_subnet, count.index + 11)}"
 #       type        = "ssh"
 #       user        = "ubuntu"
 #       private_key = file("${var.admin_ssh_private_key}")
@@ -103,12 +103,12 @@ resource "libvirt_domain" "domain" {
 #     }
 #   }
 
-  count = var.es_nodes_count
+  count = var.nodes_count
 }
 
-output "elasticsearch_ip_addresses" {
+output "hosts_ip_addresses" {
   value = {
     for index, instance in libvirt_domain.domain:
-      instance.name => cidrhost(var.elasticsearch_vrack_subnet, index+11)
+      instance.name => cidrhost(var.es_vrack_subnet, index+11)
   }
 }
