@@ -16,6 +16,11 @@ variable "micro_dc_public_bridge" {
   type    = string
 }
 
+variable "admin_ssh_private_key" {
+  type    = string
+}
+
+
 # Private network setup (vrack)
 # -----------------------------
 variable "vrack_network_name" {
@@ -31,6 +36,11 @@ variable "vrack_network_bridge" {
 variable "vrack_ip_range" {
   type    = string
   default = "172.30.0.0/16"
+}
+
+variable "elasticsearch_vrack_subnet" {
+    type    = string
+    default = "172.30.4.0/24"
 }
 
 
