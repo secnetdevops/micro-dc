@@ -1,6 +1,11 @@
-variable "ssh_public_key" {
+variable "es_nodes_count" {
+  type    = number
+  default = 3
+}
+
+variable "admin_ssh_public_key" {
   type    = string
-  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDKQtDa2i34Tbi5bxNZS1Q82Fee6kosqQiYs3Nv9X1qQSC0nUm8E07UFJDl37b2Bf/MY5Qe0itSvxgTn7DhSx7qbMzM2yRi15Yxn0Qn5MfGPRiJp1v/GE1vMg01vbyN/6yK+7ki6ef3vVzi1p97IVpgAe9F8ayQWD93bLWmCwiOtGcm4Ab4REwc69uxm78CyUwxg4q4O3AiUOfyqi9b7DlofPAfalmzIdW7yFKgqPux40uui636Eq5S1QsZ4+nUqdZyM9vKnOjcUCObcaWtCeMVvQT+3eMTDtDpTK6z0IiHjWfWuqBTo8waF6toPbdkawpwGKzEOw+8IrdPHRV+FM40a+ndMPE5Bu66P/wcw9Z/yuJ8ucHRe6SleLdiS95FUe3H9qHco1s4BamSQJnjuvFb7XwLXnZtXn8ObRVlOKcKNKe53Z7v2vBJGGkw3rSkNN1eTGj8daEx8a8A+y9o2TOabZjKnjSm7em+RJ3gZwczJWfQl71vXzALdkUkgV3l7R+4ullKSZbZk9igmVJt/Wle1fY3tO/rgt5prWknLZ7KkGlSUIg6rvs7H6oHE879MNY/eCB5xUdC3wbxANQGIWe/kr1qaLrKmoYDNzosiS/aaceWoUF2lhtA0t+nbb3hKBCSFRgMa/ZIe2RRHcRNFQJL1dvUyYR4J+k4JDOOqnjDvw=="
+  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDEl9ZynVlYBuXm3j9xxBcC7ap4fn+IZw5qLhSk1b1LizSmnvxgCWjrGu8SmEFirMH3xgEYgoyJroR60I4UfkkPGpbk3hbP89C4yOqEaeC6F10yWyA48sFIbyxFOxOPokPwjsn7I2scsuFesKVEm57oX0vGqGIPqT7+SSC2v+cY6QNUTFofSgzPE1d0EZ/2oVraigMcnwFCNcYY60mxNlx10qk3iGa4hcNFFEg+dOgGTM8PQMoXMSHHH+3zTGptxCRecJBzs0ZqJ5nRIyUrdvo2tNCwXcHPtEe0ZsXt/0GwBrywNad6bS/BjJiTOBDin1D2EGGgiWnT1oJlPEDATElKNevwHLbOgH5MrCvM+Ohfr9uFEjk+BCUHO1yGxo8JibcOE0CkD6sTbF0TniR4qqlfNu0KqjYRbdY2t7E/8ZlySDNfki/JCQ3UPEyHKEWXvKc8Fw260OaEpAkg3iHwUBTB2uAzHUoBUk03ZxKhEIq99yIDMFhiSSQMqrXxAZOTMTum1M8gJ1LhNFwogTAhw3wRqnSyxr5b4sBGMebRptraTxqbjZVe8pqNMODFvWH4IJ1gTWZTXsWgQH7wc8fJYPMH+qTvO2FIKCz4bPyCMNp8FCfmaA2vnwOXm3kj2KVkACrGL+wXI/tSWonDnx4EjcRE5dNtII2W4fbSMFVAlmT+Fw=="
 }
 
 resource "libvirt_pool" "storage" {
@@ -23,7 +28,7 @@ users:
     shell: /bin/bash
     lock_passwd: false
     ssh-authorized-keys:
-      - ${var.ssh_public_key}
+      - ${var.admin_ssh_public_key}
 ssh_pwauth: false
 disable_root: true
 EOF
@@ -35,14 +40,18 @@ ethernets:
       dhcp4: false
       dhcp6: false
       addresses:
-        - 172.30.80.${count.index+1}/16
+      - ${cidrhost(var.elasticsearch_vrack_subnet, count.index + 11)}/${regex(".*/(.*)", var.elasticsearch_vrack_subnet)[0]}
       nameservers:
         addresses: [ 8.8.8.8 ]
+      routes:
+      - to: 0.0.0.0/0
+        via: ${cidrhost(var.vrack_ip_range, count.index+1)}
+        on-link: true
 EOF
   #user_data      = data.template_file.user_data.rendered
   #network_config = data.template_file.network_config.rendered
 
-  count          = 3
+  count          = var.es_nodes_count
 }
 
 resource "libvirt_volume" "volume" {
@@ -50,7 +59,7 @@ resource "libvirt_volume" "volume" {
   base_volume_id = "/var/lib/libvirt/images/ubuntu20.04"
   format         = "qcow2"
   pool           = libvirt_pool.storage.name
-  count          = 3
+  count          = var.es_nodes_count
 }
 
 resource "libvirt_domain" "domain" {
@@ -76,7 +85,30 @@ resource "libvirt_domain" "domain" {
     source_path = "/dev/pts/4"
   }
 
-  count         = 3
+#   provisioner "remote-exec" {
+#     inline = [
+#       "echo TEST?",
+#       "echo Done!"
+#     ]
+
+#     connection {
+#       bastion_host = var.micro_dc_host
+#       bastion_user = var.micro_dc_user
+
+#       host        = "${cidrhost(var.elasticsearch_vrack_subnet, count.index + 11)}"
+#       type        = "ssh"
+#       user        = "ubuntu"
+#       private_key = file("${var.admin_ssh_private_key}")
+#       timeout     = "2m"
+#     }
+#   }
+
+  count = var.es_nodes_count
 }
 
-
+output "elasticsearch_ip_addresses" {
+  value = {
+    for index, instance in libvirt_domain.domain:
+      instance.name => cidrhost(var.elasticsearch_vrack_subnet, index+11)
+  }
+}
